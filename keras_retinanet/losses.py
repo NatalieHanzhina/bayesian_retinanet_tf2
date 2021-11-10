@@ -50,7 +50,7 @@ def focal(alpha=0.1, gamma=2.0, cutoff=0.5, sigma_var=None):
         labels = y_true[:, :, :-1]
         anchor_state = y_true[:, :, -1]  # -1 for ignore, 0 for background, 1 for object
         classification = y_pred
-
+        #
         # filter out "ignore" anchors
         indices = tf.where(keras.backend.not_equal(anchor_state, -1))
         labels = tf.gather_nd(labels, indices)
