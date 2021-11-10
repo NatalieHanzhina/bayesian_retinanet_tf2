@@ -1,3 +1,4 @@
+#hello from localhost
 #!/usr/bin/env python
 
 """
@@ -23,6 +24,7 @@ import warnings
 
 from tensorflow import keras
 import tensorflow as tf
+import numpy as np
 
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:
@@ -115,22 +117,33 @@ def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0,
         model          = model_with_weights(backbone_retinanet(num_classes, num_anchors=num_anchors, modifier=modifier, pyramid_levels=pyramid_levels), weights=weights, skip_mismatch=True)
         training_model = model
 
+    sigma_sq_focal = training_model.add_weight(dtype=tf.float32, name='sigma_sq_focal',
+                                               initializer=tf.constant_initializer(0),
+                                               trainable=True)
+    sigma_sq_smooth_l1 = training_model.add_weight(dtype=tf.float32, name='sigma_sq_smooth_l1',
+                                                  initializer=tf.constant_initializer(1.0),
+                                                  trainable=True)
+    regression_loss, loss_class_reg = losses.smooth_l1(sigma_var=sigma_sq_smooth_l1)
+    classification_loss, loss_class_cl = losses.focal(sigma_var=sigma_sq_focal)
     # make prediction model
     prediction_model = retinanet_bbox(model=model, anchor_params=anchor_params, pyramid_levels=pyramid_levels)
-
+    # training_model.add_metric(loss_class_reg, name='sigma_smooth_l1')
+    # training_model.add_metric2(loss_class_cl, name='sigma_focal')
+    # print(training_model.get_weights())
     # compile model
     training_model.compile(
         loss={
-            'regression'    : losses.smooth_l1(),
-            'classification': losses.focal()
+            'regression'    : regression_loss,
+            'classification': classification_loss
         },
         optimizer=keras.optimizers.Adam(lr=lr, clipnorm=optimizer_clipnorm)
+        # metrics=[np.float(loss_class_reg), np.float(loss_class_cl)]
     )
 
-    return model, training_model, prediction_model
+    return model, training_model, prediction_model, [loss_class_reg, loss_class_cl]
 
 
-def create_callbacks(model, training_model, prediction_model, validation_generator, args):
+def create_callbacks(model, training_model, prediction_model, validation_generator, sigmas, args):
     """ Creates the callbacks to use during training.
 
     Args
@@ -172,7 +185,9 @@ def create_callbacks(model, training_model, prediction_model, validation_generat
             # use prediction model for evaluation
             evaluation = CocoEval(validation_generator, tensorboard=tensorboard_callback)
         else:
-            evaluation = Evaluate(validation_generator, tensorboard=tensorboard_callback, weighted_average=args.weighted_average)
+            evaluation = Evaluate(validation_generator, tensorboard=tensorboard_callback,
+                                  weighted_average=args.weighted_average,
+                                  sigmas=sigmas)
         evaluation = RedirectModel(evaluation, prediction_model)
         callbacks.append(evaluation)
 
@@ -205,9 +220,10 @@ def create_callbacks(model, training_model, prediction_model, validation_generat
     ))
 
     if args.evaluation and validation_generator:
+        print("EarlyStopping works")
         callbacks.append(keras.callbacks.EarlyStopping(
             monitor    = 'mAP',
-            patience   = 5,
+            patience   = 10,
             mode       = 'max',
             min_delta  = 0.01
         ))
@@ -435,7 +451,7 @@ def parse_args(args):
     parser.add_argument('--lr',               help='Learning rate.', type=float, default=1e-5)
     parser.add_argument('--optimizer-clipnorm', help='Clipnorm parameter for  optimizer.', type=float, default=0.001)
     parser.add_argument('--snapshot-path',    help='Path to store snapshots of models during training (defaults to \'./snapshots\')', default='./snapshots')
-    parser.add_argument('--tensorboard-dir',  help='Log directory for Tensorboard output', default='')  # default='./logs') => https://github.com/tensorflow/tensorflow/pull/34870
+    parser.add_argument('--tensorboard-dir',  help='Log directory for Tensorboard output', default='./logs') #=> https://github.com/tensorflow/tensorflow/pull/34870
     parser.add_argument('--tensorboard-freq', help='Update frequency for Tensorboard output. Values \'epoch\', \'batch\' or int', default='epoch')
     parser.add_argument('--no-snapshots',     help='Disable saving snapshots.', dest='snapshots', action='store_false')
     parser.add_argument('--no-evaluation',    help='Disable per epoch evaluation.', dest='evaluation', action='store_false')
@@ -502,7 +518,7 @@ def main(args=None):
             weights = backbone.download_imagenet()
 
         print('Creating model, this may take a second...')
-        model, training_model, prediction_model = create_models(
+        model, training_model, prediction_model, sigmas = create_models(
             backbone_retinanet=backbone.retinanet,
             num_classes=train_generator.num_classes(),
             weights=weights,
@@ -528,6 +544,7 @@ def main(args=None):
         training_model,
         prediction_model,
         validation_generator,
+        sigmas,
         args,
     )
 
@@ -547,6 +564,19 @@ def main(args=None):
         validation_data=validation_generator,
         initial_epoch=args.initial_epoch
     )
+    # return training_model.fit_generator(
+    #     generator=train_generator,
+    #     steps_per_epoch=args.steps//args.batch_size,
+    #     epochs=args.epochs,
+    #     verbose=1,
+    #     callbacks=callbacks,
+    #     workers=args.workers,
+    #     use_multiprocessing=args.multiprocessing,
+    #     max_queue_size=args.max_queue_size,
+    #     validation_data=validation_generator,
+    #     validation_steps=int(0.2*args.steps/args.batch_size),
+    #     initial_epoch=args.initial_epoch
+    # )
 
 
 if __name__ == '__main__':

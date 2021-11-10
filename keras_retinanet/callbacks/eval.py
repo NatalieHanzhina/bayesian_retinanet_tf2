@@ -31,7 +31,8 @@ class Evaluate(keras.callbacks.Callback):
         save_path=None,
         tensorboard=None,
         weighted_average=False,
-        verbose=1
+        verbose=1,
+        sigmas=None
     ):
         """ Evaluate a given dataset using a given model at the end of every epoch during training.
 
@@ -53,6 +54,7 @@ class Evaluate(keras.callbacks.Callback):
         self.tensorboard     = tensorboard
         self.weighted_average = weighted_average
         self.verbose         = verbose
+        self.sigmas          = sigmas
 
         super(Evaluate, self).__init__()
 
@@ -97,3 +99,22 @@ class Evaluate(keras.callbacks.Callback):
 
         if self.verbose == 1:
             print('mAP: {:.4f}'.format(self.mean_ap))
+ # ____________________Sigmas block__________________________
+            if self.tensorboard:
+                import tensorflow as tf
+                writer = tf.summary.create_file_writer(self.tensorboard.log_dir)
+                with writer.as_default():
+                    tf.summary.scalar("sigma_reg", self.sigmas[0], step=epoch)
+                    tf.summary.scalar("sigma_cl", self.sigmas[1], step=epoch)
+                    # if self.verbose == 14:
+                    #     for label, (average_precision, num_annotations) in average_precisions.items():
+                    #         tf.summary.scalar("AP_" + self.generator.label_to_name(label), average_precision,
+                    #                           step=epoch)
+                    writer.flush()
+
+            logs['sigma_reg'] = self.sigmas[0]
+            logs['sigma_cl'] = self.sigmas[1]
+
+            if self.verbose == 1:
+                print('sigma_reg: {:.8f}'.format(self.sigmas[0].numpy()))
+                print('sigma_cl: {:.8f}'.format(self.sigmas[1].numpy()))

@@ -16,6 +16,8 @@ limitations under the License.
 
 import cv2
 import numpy as np
+import os
+import csv
 
 from .colors import label_color
 
@@ -33,6 +35,44 @@ def draw_box(image, box, color, thickness=2):
     cv2.rectangle(image, (b[0], b[1]), (b[2], b[3]), color, thickness, cv2.LINE_AA)
 
 
+def crop_box(image, name, annotations, label_to_name=None, save_path=".", group=False):
+    """ Crops annotated bboxes from an image.
+
+    # Arguments
+        image         : The image to draw on.
+        name         : The image id.
+        annotations   : A [N, 5] matrix (x1, y1, x2, y2, label) or dictionary containing bboxes (shaped [N, 4]) and labels (shaped [N]).
+        label_to_name : (optional) Functor for mapping a label to a name.
+        save_path : path to save cropped images and annotations.
+    """
+    if isinstance(annotations, np.ndarray):
+        annotations = {'bboxes': annotations[:, :4], 'labels': annotations[:, 4]}
+
+    assert('bboxes' in annotations)
+    assert('labels' in annotations)
+    assert(annotations['bboxes'].shape[0] == annotations['labels'].shape[0])
+
+    for i in range(annotations['bboxes'].shape[0]):
+        label   = annotations['labels'][i]
+        caption = '{}'.format(label_to_name(label) if label_to_name else label)
+        # draw_caption(image, annotations['bboxes'][i], caption)
+        # draw_box(image, annotations['bboxes'][i], color=c)
+        b = np.array(annotations['bboxes'][i]).astype(int)
+        cropped_image = image[b[1]:b[3], b[0]:b[2]]
+        try:
+            if group:
+                if not os.path.exists(os.path.join(save_path, caption)):
+                    os.mkdir(os.path.join(save_path, caption))
+                # print(os.path.join(save_path, caption, '{}{}.png'.format(name, i)))
+                cv2.imwrite(os.path.join(save_path, caption, '{}{}.png'.format(name, i)), cropped_image)
+            else:
+                cv2.imwrite(os.path.join(save_path, '{}{}.png'.format(name, i)), cropped_image)
+            # csvwriter = csv.writer(csvfile, delimiter=',')
+            # csvwriter.writerow(['{}{}.png'.format(name, i), caption])
+        except Exception as e:
+            print(e, b[0], b[1], b[2], b[3])
+
+
 def draw_caption(image, box, caption):
     """ Draws a caption above the box in an image.
 
@@ -42,8 +82,9 @@ def draw_caption(image, box, caption):
         caption : String containing the text to draw.
     """
     b = np.array(box).astype(int)
-    cv2.putText(image, caption, (b[0], b[1] - 10), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 2)
-    cv2.putText(image, caption, (b[0], b[1] - 10), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
+    # print(caption)
+    cv2.putText(image, caption, (b[0], b[1] - 20), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 2)
+    cv2.putText(image, caption, (b[0], b[1] - 20), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
 
 
 def draw_boxes(image, boxes, color, thickness=2):
@@ -56,6 +97,7 @@ def draw_boxes(image, boxes, color, thickness=2):
         thickness : The thickness of the lines to draw boxes with.
     """
     for b in boxes:
+        # b = b.astype(int)
         draw_box(image, b, color, thickness=thickness)
 
 
@@ -102,5 +144,6 @@ def draw_annotations(image, annotations, color=(0, 255, 0), label_to_name=None):
         label   = annotations['labels'][i]
         c       = color if color is not None else label_color(label)
         caption = '{}'.format(label_to_name(label) if label_to_name else label)
+        # print(caption)
         draw_caption(image, annotations['bboxes'][i], caption)
         draw_box(image, annotations['bboxes'][i], color=c)

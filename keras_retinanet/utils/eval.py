@@ -15,7 +15,7 @@ limitations under the License.
 """
 
 from .anchors import compute_overlap
-from .visualization import draw_detections, draw_annotations
+from .visualization import draw_detections, draw_annotations, crop_box
 
 from tensorflow import keras
 import numpy as np
@@ -56,7 +56,7 @@ def _compute_ap(recall, precision):
     return ap
 
 
-def _get_detections(generator, model, score_threshold=0.05, max_detections=100, save_path=None):
+def _get_detections(generator, model, score_threshold=0.05, max_detections=100, save_path=None, crop=False, group=False):
     """ Get the detections from the model using the generator.
 
     The result is a list of lists such that the size is:
@@ -73,7 +73,7 @@ def _get_detections(generator, model, score_threshold=0.05, max_detections=100, 
     """
     all_detections = [[None for i in range(generator.num_classes()) if generator.has_label(i)] for j in range(generator.size())]
     all_inferences = [None for i in range(generator.size())]
-
+    # with open(os.path.join(save_path, 'annotations.csv'), 'w+', newline='') as csvfile:
     for i in progressbar.progressbar(range(generator.size()), prefix='Running network: '):
         raw_image    = generator.load_image(i)
         image, scale = generator.resize_image(raw_image.copy())
@@ -86,10 +86,12 @@ def _get_detections(generator, model, score_threshold=0.05, max_detections=100, 
         start = time.time()
         boxes, scores, labels = model.predict_on_batch(np.expand_dims(image, axis=0))[:3]
         inference_time = time.time() - start
-
+        # print(np.array(boxes).shape)
         # correct boxes for image scale
         boxes /= scale
+        # boxes[:, :, 0], boxes[:, :, 1], boxes[:, :, 2], boxes[:, :, 3] = [boxes[:, :, 1], boxes[:, :, 0], boxes[:, :, 3], boxes[:, :, 2]]
 
+        # print(np.array(boxes).shape)
         # select indices which have a score above the threshold
         indices = np.where(scores[0, :] > score_threshold)[0]
 
@@ -104,13 +106,15 @@ def _get_detections(generator, model, score_threshold=0.05, max_detections=100, 
         image_scores     = scores[scores_sort]
         image_labels     = labels[0, indices[scores_sort]]
         image_detections = np.concatenate([image_boxes, np.expand_dims(image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
+        raw_image = np.ascontiguousarray(raw_image)
 
-        if save_path is not None:
+        if save_path is not None and crop:
+            crop_box(raw_image, i, generator.load_annotations(i), label_to_name=generator.label_to_name, save_path=save_path, group=group)
+        elif save_path is not None:
             draw_annotations(raw_image, generator.load_annotations(i), label_to_name=generator.label_to_name)
             draw_detections(raw_image, image_boxes, image_scores, image_labels, label_to_name=generator.label_to_name, score_threshold=score_threshold)
 
             cv2.imwrite(os.path.join(save_path, '{}.png'.format(i)), raw_image)
-
         # copy detections to all_detections
         for label in range(generator.num_classes()):
             if not generator.has_label(label):
@@ -156,7 +160,9 @@ def evaluate(
     iou_threshold=0.5,
     score_threshold=0.05,
     max_detections=100,
-    save_path=None
+    save_path=None,
+    crop=False,
+    group=False
 ):
     """ Evaluate a given dataset using a given model.
 
@@ -171,7 +177,9 @@ def evaluate(
         A dict mapping class names to mAP scores.
     """
     # gather all detections and annotations
-    all_detections, all_inferences = _get_detections(generator, model, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
+    all_detections, all_inferences = _get_detections(generator, model, score_threshold=score_threshold,
+                                                     max_detections=max_detections, save_path=save_path, crop=crop,
+                                                     group=group)
     all_annotations    = _get_annotations(generator)
     average_precisions = {}
 

@@ -240,6 +240,7 @@ def random_transform(
         flip_y_chance:   The chance (0 to 1) that a transform will contain a flip along Y direction.
         prng:            The pseudo-random number generator to use.
     """
+    # print("transform is performed")
     return np.linalg.multi_dot([
         random_rotation(min_rotation, max_rotation, prng),
         random_translation(min_translation, max_translation, prng),

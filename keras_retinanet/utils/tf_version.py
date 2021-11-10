@@ -19,7 +19,7 @@ from __future__ import print_function
 import tensorflow as tf
 import sys
 
-MINIMUM_TF_VERSION = 2, 3, 0
+MINIMUM_TF_VERSION = 2, 2, 0
 BLACKLISTED_TF_VERSIONS = []
 
 

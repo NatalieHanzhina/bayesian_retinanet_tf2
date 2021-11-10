@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import tensorflow
+import tensorflow as tf
 from tensorflow import keras
 
 
-def focal(alpha=0.25, gamma=2.0, cutoff=0.5):
+def focal(alpha=0.1, gamma=2.0, cutoff=0.5, sigma_var=None):
     """ Create a functor for computing the focal loss.
 
     Args
@@ -29,6 +29,12 @@ def focal(alpha=0.25, gamma=2.0, cutoff=0.5):
     Returns
         A functor that computes the focal loss using the alpha and gamma.
     """
+    if sigma_var is None:
+        sigma_var = tf.Variable(dtype=tf.float32, name="sigma_sq_focal",
+                                initial_value=tf.constant_initializer(0)
+                                .__call__(shape=[], dtype=tf.float32),
+                                trainable=True)
+
     def _focal(y_true, y_pred):
         """ Compute the focal loss given the target tensor and the predicted tensor.
 
@@ -41,34 +47,42 @@ def focal(alpha=0.25, gamma=2.0, cutoff=0.5):
         Returns
             The focal loss of y_pred w.r.t. y_true.
         """
-        labels         = y_true[:, :, :-1]
-        anchor_state   = y_true[:, :, -1]  # -1 for ignore, 0 for background, 1 for object
+        labels = y_true[:, :, :-1]
+        anchor_state = y_true[:, :, -1]  # -1 for ignore, 0 for background, 1 for object
         classification = y_pred
 
         # filter out "ignore" anchors
-        indices        = tensorflow.where(keras.backend.not_equal(anchor_state, -1))
-        labels         = tensorflow.gather_nd(labels, indices)
-        classification = tensorflow.gather_nd(classification, indices)
+        indices = tf.where(keras.backend.not_equal(anchor_state, -1))
+        labels = tf.gather_nd(labels, indices)
+        classification = tf.gather_nd(classification, indices)
 
         # compute the focal loss
         alpha_factor = keras.backend.ones_like(labels) * alpha
-        alpha_factor = tensorflow.where(keras.backend.greater(labels, cutoff), alpha_factor, 1 - alpha_factor)
-        focal_weight = tensorflow.where(keras.backend.greater(labels, cutoff), 1 - classification, classification)
+        alpha_factor = tf.where(keras.backend.greater(labels, cutoff), alpha_factor, 1 - alpha_factor)
+        # focal_weight = tf.where(keras.backend.greater(labels, cutoff), 1 - classification, classification)
+        focal_weight = tf.where(keras.backend.greater(labels, cutoff),
+                                (1 - classification) ** keras.backend.exp(-sigma_var) * keras.backend.exp(
+                                    -0.5 * sigma_var),
+                                (1 - (1 - classification)) ** keras.backend.exp(-sigma_var) * keras.backend.exp(
+                                    -0.5 * sigma_var))
         focal_weight = alpha_factor * focal_weight ** gamma
 
-        cls_loss = focal_weight * keras.backend.binary_crossentropy(labels, classification)
+        cross_entropy = keras.backend.binary_crossentropy(labels, classification) * keras.backend.exp(
+            -sigma_var) + sigma_var / 2.0 ###here might be - sigma_var / 2.20
+
+        cls_loss = focal_weight * cross_entropy
 
         # compute the normalizer: the number of positive anchors
-        normalizer = tensorflow.where(keras.backend.equal(anchor_state, 1))
+        normalizer = tf.where(keras.backend.equal(anchor_state, 1))
         normalizer = keras.backend.cast(keras.backend.shape(normalizer)[0], keras.backend.floatx())
         normalizer = keras.backend.maximum(keras.backend.cast_to_floatx(1.0), normalizer)
 
         return keras.backend.sum(cls_loss) / normalizer
 
-    return _focal
+    return _focal, sigma_var
 
 
-def smooth_l1(sigma=3.0):
+def smooth_l1(sigma=3.0, sigma_var=None):
     """ Create a smooth L1 loss functor.
 
     Args
@@ -78,6 +92,11 @@ def smooth_l1(sigma=3.0):
         A functor for computing the smooth L1 loss given target data and predicted data.
     """
     sigma_squared = sigma ** 2
+    if sigma_var is None:
+        sigma_var = tf.Variable(dtype=tf.float32, name="sigma_sq_smooth_l1",
+                                initial_value=tf.constant_initializer(0)
+                                .__call__(shape=[], dtype=tf.float32),
+                                trainable=True)
 
     def _smooth_l1(y_true, y_pred):
         """ Compute the smooth L1 loss of y_pred w.r.t. y_true.
@@ -90,24 +109,38 @@ def smooth_l1(sigma=3.0):
             The smooth L1 loss of y_pred w.r.t. y_true.
         """
         # separate target and state
-        regression        = y_pred
+        regression = y_pred
         regression_target = y_true[:, :, :-1]
-        anchor_state      = y_true[:, :, -1]
+        anchor_state = y_true[:, :, -1]
 
         # filter out "ignore" anchors
-        indices           = tensorflow.where(keras.backend.equal(anchor_state, 1))
-        regression        = tensorflow.gather_nd(regression, indices)
-        regression_target = tensorflow.gather_nd(regression_target, indices)
+        indices = tf.where(keras.backend.equal(anchor_state, 1))
+        regression = tf.gather_nd(regression, indices)
+        regression_target = tf.gather_nd(regression_target, indices)
 
         # compute smooth L1 loss
         # f(x) = 0.5 * (sigma * x)^2          if |x| < 1 / sigma / sigma
         #        |x| - 0.5 / sigma / sigma    otherwise
+        factor = 1.0 / (2.0 * keras.backend.exp(sigma_var))
         regression_diff = regression - regression_target
         regression_diff = keras.backend.abs(regression_diff)
-        regression_loss = tensorflow.where(
+        regression_loss = tf.where(
             keras.backend.less(regression_diff, 1.0 / sigma_squared),
-            0.5 * sigma_squared * keras.backend.pow(regression_diff, 2),
-            regression_diff - 0.5 / sigma_squared
+            factor * keras.backend.pow(regression_diff, 2) + 0.5 * sigma_var,
+            - 1.0 / sigma_squared * keras.backend.log(
+                1.0 - tf.math.erf(
+                    keras.backend.sqrt(factor) / sigma_squared
+                    # / keras.backend.sqrt(2.0 * keras.backend.exp(sigma_var))
+                )
+            ) * regression_diff
+            + keras.backend.log(
+                1.0 - tf.math.erf(
+                    keras.backend.sqrt(factor) / sigma_squared
+                    # / keras.backend.sqrt(2.0 * keras.backend.exp(sigma_var))
+                )
+            )
+            + factor / (sigma_squared ** 2.0)
+            + 0.5 * sigma_var
         )
 
         # compute the normalizer: the number of positive anchors
@@ -115,4 +148,4 @@ def smooth_l1(sigma=3.0):
         normalizer = keras.backend.cast(normalizer, dtype=keras.backend.floatx())
         return keras.backend.sum(regression_loss) / normalizer
 
-    return _smooth_l1
+    return _smooth_l1, sigma_var

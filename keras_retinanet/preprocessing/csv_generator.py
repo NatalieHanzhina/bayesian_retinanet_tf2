@@ -87,13 +87,18 @@ def _read_annotations(csv_reader, classes):
 
         # Check that the bounding box is valid.
         if x2 <= x1:
-            raise ValueError('line {}: x2 ({}) must be higher than x1 ({})'.format(line, x2, x1))
+            # raise ValueError('line {}: x2 ({}) must be higher than x1 ({})'.format(line, x2, x1))
+            print('line {}: x2 ({}) must be higher than x1 ({})'.format(line, x2, x1))
+            continue
         if y2 <= y1:
-            raise ValueError('line {}: y2 ({}) must be higher than y1 ({})'.format(line, y2, y1))
+            # raise ValueError('line {}: y2 ({}) must be higher than y1 ({})'.format(line, y2, y1))
+            print('line {}: y2 ({}) must be higher than y1 ({})'.format(line, y2, y1))
+            continue
 
         # check if the current class name is correctly present
         if class_name not in classes:
-            raise ValueError('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            print('line {}: unknown class name: \'{}\' (classes: {})'.format(line, class_name, classes))
+            continue
 
         result[img_file].append({'x1': x1, 'x2': x2, 'y1': y1, 'y2': y2, 'class': class_name})
     return result
