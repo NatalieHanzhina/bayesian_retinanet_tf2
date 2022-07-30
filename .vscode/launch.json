@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "module": "keras_retinanet.bin.train",
+            "console": "integratedTerminal",
+            "remoteTmux.sshHost": "turing",
+            "remoteTmux.tmuxSessionName": "vscode",
+            "justMyCode": false,
+            "args": [
+                "--imagenet-weights",
+                "--epochs", 
+                "100",  
+                //"--steps", "1716",
+                "--batch-size", "2", 
+                "--gpu", "0", 
+                "--random-transform", 
+                "--snapshot-path", "/mnt/tank/scratch/nkhanzhina/snapshots_bayesian_retina_softmax_1",
+                "csv", "~/retinanetio/bboxes_train.csv", "~/retinanetio/class_map.csv",
+                "--val-annotations", "~/retinanetio/bboxes_test.csv"
+            ]
+        }
+    ]
+}
+

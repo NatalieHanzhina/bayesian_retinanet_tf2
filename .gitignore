@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+/build/
+/dist/
+/eggs/
+/*-eggs/
+.eggs/
+/sdist/
+/wheels/
+/*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+
+*.h5
+resnet50_custom_origin
+..resnet50_custom_origin
+../resnet50_custom_origin
+.bayesian_retina.h5
+bayesian_retina.h5
+bayesian_retina_tf2/keras_retinanet/bin/bayesian_retina.h5
+keras_retinanet/bin/bayesian_retina.h5
+/keras_retinanet/bin/bayesian_retina.h5
+
+keras_retinanet/bin/logs*
