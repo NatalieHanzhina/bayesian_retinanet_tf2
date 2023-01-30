@@ -124,5 +124,5 @@ class Evaluate(keras.callbacks.Callback):
             if self.verbose == 1:
                 print('sigma_reg: {:.8f}'.format(self.sigmas[0].numpy()))
                 print('sigma_cl: {:.8f}'.format(self.sigmas[1].numpy()))
-                print('running_mean: ',(self.running_stats[0].numpy()))
-                print('running_var: ',(self.running_stats[1].numpy()))               
+                # print('running_mean: ',(self.running_stats[0].numpy()))
+                # print('running_var: ',(self.running_stats[1].numpy()))               

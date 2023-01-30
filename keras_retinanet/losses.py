@@ -67,16 +67,17 @@ def focal(alpha=0.25, gamma=2.0, cutoff=0.5, sigma_var=None):
         #                             -0.5 * sigma_var))
         
         #from Alexey Lapenok master thesis:
-        # focal_weight = tf.where(keras.backend.equal(labels, 1),
-        #                              1 - classification ** keras.backend.exp(-sigma_var)* keras.backend.exp(
-        #                             -0.5 * sigma_var),
-        #                              1 - (1 - classification) ** keras.backend.exp(-sigma_var)* keras.backend.exp(
-        #                             -0.5 * sigma_var))
-        #try then
         focal_weight = tf.where(keras.backend.equal(labels, 1),
-                                     1 - classification * keras.backend.exp(-1.5 * keras.backend.pow(sigma_var, 2)),
-                                     classification * keras.backend.exp(
-                                         -1.5 * keras.backend.pow(sigma_var, 2)))       
+                                     1 - classification ** keras.backend.exp(-sigma_var) * keras.backend.exp(
+                                    -0.5 * sigma_var),
+                                     classification ** keras.backend.exp(-sigma_var) * keras.backend.exp(
+                                    -0.5 * sigma_var))
+        #try then
+        # focal_weight = tf.where(keras.backend.equal(labels, 1),
+        #                              1 - classification * keras.backend.exp(-1.5 * keras.backend.pow(sigma_var, 2)),
+        #                              classification * keras.backend.exp(
+        #                                  -1.5 * keras.backend.pow(sigma_var, 2)))       
+     
         focal_weight = alpha_factor * focal_weight ** gamma
 
         cross_entropy = keras.backend.binary_crossentropy(labels, classification) * keras.backend.exp(

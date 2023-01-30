@@ -133,9 +133,9 @@ def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0,
     sigma_sq_smooth_l1 = training_model.add_weight(dtype=tf.float32, name='sigma_sq_smooth_l1',
                                                   initializer=tf.constant_initializer(1.0),
                                                   trainable=True)                            
-    # regression_loss, loss_class_reg = losses.smooth_l1(sigma_var=sigma_sq_smooth_l1)
-    regression_loss, loss_class_reg, running_mean, running_var = losses.adjust_smooth_l1( 
-                                        weights=[running_mean_smooth_l1, running_var_smooth_l1, sigma_sq_smooth_l1])
+    regression_loss, loss_class_reg = losses.smooth_l1(sigma_var=sigma_sq_smooth_l1)
+    # regression_loss, loss_class_reg, running_mean, running_var = losses.adjust_smooth_l1( 
+    #                                     weights=[running_mean_smooth_l1, running_var_smooth_l1, sigma_sq_smooth_l1])
 
 
     classification_loss, loss_class_cl = losses.focal(sigma_var=sigma_sq_focal)
@@ -159,7 +159,7 @@ def create_models(backbone_retinanet, num_classes, weights, multi_gpu=0,
         optimizer=keras.optimizers.Adam(lr=lr, clipnorm=optimizer_clipnorm)
         # metrics=[np.float(running_mean), np.float(running_var)]
     )
-
+    running_mean, running_var = [0], [0]
     return model, training_model, prediction_model, [loss_class_reg, loss_class_cl], [running_mean, running_var]
 
 

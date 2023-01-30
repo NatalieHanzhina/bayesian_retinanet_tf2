@@ -22,7 +22,7 @@ import csv
 from .colors import label_color
 
 
-def draw_box(image, box, color, thickness=2):
+def draw_box(image, box, color, name='0', i=0, thickness=2, save_path="."):
     """ Draws a box on an image with a given color.
 
     # Arguments
@@ -33,6 +33,9 @@ def draw_box(image, box, color, thickness=2):
     """
     b = np.array(box).astype(int)
     cv2.rectangle(image, (b[0], b[1]), (b[2], b[3]), color, thickness, cv2.LINE_AA)
+
+    cropped_image = image[b[1]:b[3], b[0]:b[2]]
+    cv2.imwrite(os.path.join(save_path, '{}{}.png'.format(name, i)), cropped_image)
 
 
 def crop_box(image, name, annotations, label_to_name=None, save_path=".", group=False):
