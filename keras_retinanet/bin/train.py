@@ -26,6 +26,8 @@ from tensorflow import keras
 import tensorflow as tf
 import numpy as np
 
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
+
 # Allow relative imports when being executed as script.
 if __name__ == "__main__" and __package__ is None:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
