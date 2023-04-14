@@ -59,25 +59,13 @@ def focal(alpha=0.25, gamma=2.0, cutoff=0.5, sigma_var=None):
         # compute the focal loss
         alpha_factor = keras.backend.ones_like(labels) * alpha
         alpha_factor = tf.where(keras.backend.greater(labels, cutoff), alpha_factor, alpha_factor)
-        # focal_weight = tf.where(keras.backend.greater(labels, cutoff), 1 - classification, classification)
-        # focal_weight = tf.where(keras.backend.greater(labels, cutoff),
-        #                         (1 - classification) ** keras.backend.exp(-sigma_var) * keras.backend.exp(
-        #                             -0.5 * sigma_var),
-        #                         (1 - (1 - classification)) ** keras.backend.exp(-sigma_var) * keras.backend.exp(
-        #                             -0.5 * sigma_var))
-        
-        #from Alexey Lapenok master thesis:
+
         focal_weight = tf.where(keras.backend.equal(labels, 1),
                                      1 - classification ** keras.backend.exp(-sigma_var) * keras.backend.exp(
                                     -0.5 * sigma_var),
                                      classification ** keras.backend.exp(-sigma_var) * keras.backend.exp(
                                     -0.5 * sigma_var))
-        #try then
-        # focal_weight = tf.where(keras.backend.equal(labels, 1),
-        #                              1 - classification * keras.backend.exp(-1.5 * keras.backend.pow(sigma_var, 2)),
-        #                              classification * keras.backend.exp(
-        #                                  -1.5 * keras.backend.pow(sigma_var, 2)))       
-     
+        
         focal_weight = alpha_factor * focal_weight ** gamma
 
         cross_entropy = keras.backend.binary_crossentropy(labels, classification) * keras.backend.exp(
@@ -144,13 +132,11 @@ def smooth_l1(sigma=3.0, sigma_var=None):
             - 1.0 / sigma_squared * keras.backend.log(
                 1.0 - tf.math.erf(
                     keras.backend.sqrt(factor) / sigma_squared
-                    # / keras.backend.sqrt(2.0 * keras.backend.exp(sigma_var))
                 )
             ) * regression_diff
             + keras.backend.log(
                 1.0 - tf.math.erf(
                     keras.backend.sqrt(factor) / sigma_squared
-                    # / keras.backend.sqrt(2.0 * keras.backend.exp(sigma_var))
                 )
             )
             + factor / (sigma_squared ** 2.0)
@@ -204,15 +190,7 @@ def adjust_smooth_l1(scalars=[4, 0.1, 1. /9],
 
         Returns
             The smooth L1 loss of y_pred w.r.t. y_true.
-        """
-        # running_mean = tf.Variable(dtype=tf.float32, name="running_mean_smooth_l1",
-        #                             initial_value=tf.constant_initializer(beta)
-        #                             .__call__(shape=[num_features], dtype=tf.float32),
-        #                             trainable=True)                   
-        # running_var = tf.Variable(dtype=tf.float32, name="running_var_smooth_l1",
-        #                             initial_value=tf.constant_initializer(0)
-        #                             .__call__(shape=[num_features], dtype=tf.float32),
-        #                             trainable=True)            
+        """         
         # separate target and state
         nonlocal running_mean, running_var, num_features, momentum, beta
         regression = y_pred
@@ -230,15 +208,11 @@ def adjust_smooth_l1(scalars=[4, 0.1, 1. /9],
         factor = 1.0 / (2.0 * keras.backend.exp(sigma_var))
         regression_diff = regression - regression_target
         regression_diff = keras.backend.abs(regression_diff)
-        # if tf.math.is_nan(keras.backend.var(regression_diff, axis=0)) == False:
-            # print(running_mean)
+
         _running_mean = running_mean * (1 - momentum)
         _running_mean += (momentum * keras.backend.mean(regression_diff, axis=0))
         _running_var = running_var * (1 - momentum)
         _running_var += (momentum * keras.backend.var(regression_diff, axis=0))
-        # else:
-        #     _running_mean = running_mean
-        #     _running_var = running_var
 
 
         beta = (_running_mean - _running_var)
@@ -255,13 +229,11 @@ def adjust_smooth_l1(scalars=[4, 0.1, 1. /9],
             - 1.0 / sigma_squared * keras.backend.log(
                 1.0 - tf.math.erf(
                     keras.backend.sqrt(factor) / sigma_squared
-                    # / keras.backend.sqrt(2.0 * keras.backend.exp(sigma_var))
                 )
             ) * regression_diff
             + keras.backend.log(
                 1.0 - tf.math.erf(
                     keras.backend.sqrt(factor) / sigma_squared
-                    # / keras.backend.sqrt(2.0 * keras.backend.exp(sigma_var))
                 )
             )
             + factor / (sigma_squared ** 2.0)
